@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.env
+.DS_Store
+doccenter-dokumentace.md
+m365-ai-dokumentace.html
+.token-cache.json
+365center-mcp-setup-guide.html
+README.html
+test-*.ts
