@@ -255,4 +255,4 @@ For Docker, mount `~/.365center-mcp` as a volume. The token file has the same se
 
 ## Author
 
-Cristian Bucioacă — [info@cristianb.cz](mailto:info@cristianb.cz)
+Cristian Bucioacă — [cristianb.cz](https://cristianb.cz) — [info@cristianb.cz](mailto:info@cristianb.cz)
