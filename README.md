@@ -169,6 +169,30 @@ When creating pages via Graph API, these standard web parts are supported:
 
 For **Highlighted Content** and other unsupported web parts, use the REST API tools (`get_page_canvas_content` / `set_page_canvas_content`).
 
+## Security
+
+365center-mcp is designed for enterprise environments:
+
+- **No data leaves your tenant** — all API calls go directly from the MCP server to Microsoft Graph API and SharePoint REST API. No third-party servers, no telemetry, no analytics.
+- **Azure AD authentication** — uses your organization's existing Azure App Registration with OAuth 2.0. Credentials are never stored in the codebase.
+- **Principle of least privilege** — app-only auth for read/write operations, delegated auth only when required (navigation, permissions). You control exactly which permissions are granted.
+- **Device Code Flow** — delegated auth uses Microsoft's standard device code flow (same as Azure CLI, GitHub CLI). No localhost servers, no open ports, no redirect URIs needed.
+- **Token security** — refresh tokens are stored locally in `~/.365center-mcp/token-cache.json` with filesystem permissions. Tokens are never transmitted to third parties.
+- **Docker isolation** — runs as non-root user (`mcp`) inside the container. Token cache is mounted as a volume, not baked into the image.
+- **No secrets in Docker image** — credentials are passed as environment variables at runtime, never included in the build.
+- **MCP stdio transport** — communicates via stdin/stdout only. No HTTP server, no exposed ports, no network attack surface.
+- **BSL license** — source code is fully auditable. Your security team can review every line before deployment.
+
+### Recommended deployment
+
+For production environments:
+
+1. Create a dedicated Azure App Registration for 365center-mcp
+2. Grant only the permissions your workflows need
+3. Use Docker with volume mount for token persistence
+4. Store credentials in your organization's secret manager (Azure Key Vault, HashiCorp Vault, etc.)
+5. Restrict App Registration to specific SharePoint sites if possible
+
 ## Environment Variables
 
 | Variable | Required | Description |
@@ -178,9 +202,52 @@ For **Highlighted Content** and other unsupported web parts, use the REST API to
 | `AZURE_CLIENT_SECRET` | Yes | App registration client secret |
 | `SHAREPOINT_DOMAIN` | Yes | SharePoint domain (e.g. `contoso.sharepoint.com`) |
 
+## Architecture
+
+```
+Claude Desktop / Claude Code / API
+        │
+        │ stdio (stdin/stdout)
+        │
+  365center-mcp (MCP Server)
+        │
+        ├── Microsoft Graph API (v1.0)
+        │   └── Sites, Documents, Pages, Metadata
+        │
+        └── SharePoint REST API
+            └── Navigation, Permissions, CanvasContent1
+```
+
+- **Graph API** uses app-only auth (Client Credentials) — no user interaction needed
+- **REST API** uses delegated auth (Device Code Flow) — one-time login, then automatic token refresh
+
+## Docker Details
+
+The Docker image runs as non-root user `mcp` and communicates only via stdio.
+
+```bash
+# Build
+docker build -t 365center-mcp:latest ./mcp-server
+
+# Run standalone (for testing)
+docker run -i --rm \
+  -e AZURE_TENANT_ID=your-tenant-id \
+  -e AZURE_CLIENT_ID=your-client-id \
+  -e AZURE_CLIENT_SECRET=your-client-secret \
+  -e SHAREPOINT_DOMAIN=contoso.sharepoint.com \
+  -v ~/.365center-mcp:/home/mcp/.365center-mcp \
+  365center-mcp:latest
+```
+
+The `-v` flag mounts the token cache directory so delegated auth tokens persist across container restarts. Without it, you'd need to re-authenticate every time the container starts.
+
 ## Token Storage
 
-Delegated auth tokens are stored in `~/.365center-mcp/token-cache.json`. For Docker, mount this as a volume to persist tokens across container restarts.
+Delegated auth tokens are stored in `~/.365center-mcp/token-cache.json`. This file contains:
+- Access token (expires in ~1 hour, refreshed automatically)
+- Refresh token (long-lived, used to get new access tokens)
+
+For Docker, mount `~/.365center-mcp` as a volume. The token file has the same security sensitivity as your Azure credentials — protect it accordingly.
 
 ## License
 
