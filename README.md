@@ -75,12 +75,12 @@ Built for manufacturing companies that manage factory documentation in SharePoin
 ### Docker (recommended)
 
 ```bash
-docker pull 365center-mcp:latest
+docker pull crscristi28/365center-mcp:latest
 
 # Claude Desktop config (claude_desktop_config.json):
 {
   "mcpServers": {
-    "365center-mcp": {
+    "<your-server-name>": {
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
@@ -89,7 +89,7 @@ docker pull 365center-mcp:latest
         "-e", "AZURE_CLIENT_SECRET=your-client-secret",
         "-e", "SHAREPOINT_DOMAIN=contoso.sharepoint.com",
         "-v", "~/.365center-mcp:/home/mcp/.365center-mcp",
-        "365center-mcp:latest"
+        "crscristi28/365center-mcp:latest"
       ]
     }
   }
@@ -119,9 +119,9 @@ node dist/index.js
 ```json
 {
   "mcpServers": {
-    "365center-mcp": {
+    "<your-server-name>": {
       "command": "node",
-      "args": ["/path/to/365center-mcp/mcp-server/dist/index.js"],
+      "args": ["/path/to/mcp-server/dist/index.js"],
       "env": {
         "AZURE_TENANT_ID": "your-tenant-id",
         "AZURE_CLIENT_ID": "your-client-id",
