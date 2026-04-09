@@ -87,7 +87,7 @@ docker pull crscristi28/365center-mcp:latest
         "-e", "AZURE_TENANT_ID=your-tenant-id",
         "-e", "AZURE_CLIENT_ID=your-client-id",
         "-e", "AZURE_CLIENT_SECRET=your-client-secret",
-        "-e", "SHAREPOINT_DOMAIN=contoso.sharepoint.com",
+        "-e", "SHAREPOINT_DOMAIN=your-domain.sharepoint.com",
         "-v", "~/.365center-mcp:/home/mcp/.365center-mcp",
         "crscristi28/365center-mcp:latest"
       ]
@@ -108,7 +108,7 @@ npm run build
 AZURE_TENANT_ID=your-tenant-id
 AZURE_CLIENT_ID=your-client-id
 AZURE_CLIENT_SECRET=your-client-secret
-SHAREPOINT_DOMAIN=contoso.sharepoint.com
+SHAREPOINT_DOMAIN=your-domain.sharepoint.com
 
 # Run:
 node dist/index.js
@@ -126,7 +126,7 @@ node dist/index.js
         "AZURE_TENANT_ID": "your-tenant-id",
         "AZURE_CLIENT_ID": "your-client-id",
         "AZURE_CLIENT_SECRET": "your-client-secret",
-        "SHAREPOINT_DOMAIN": "contoso.sharepoint.com"
+        "SHAREPOINT_DOMAIN": "your-domain.sharepoint.com"
       }
     }
   }
@@ -234,9 +234,9 @@ docker run -i --rm \
   -e AZURE_TENANT_ID=your-tenant-id \
   -e AZURE_CLIENT_ID=your-client-id \
   -e AZURE_CLIENT_SECRET=your-client-secret \
-  -e SHAREPOINT_DOMAIN=contoso.sharepoint.com \
+  -e SHAREPOINT_DOMAIN=your-domain.sharepoint.com \
   -v ~/.365center-mcp:/home/mcp/.365center-mcp \
-  365center-mcp:latest
+  crscristi28/365center-mcp:latest
 ```
 
 The `-v` flag mounts the token cache directory so delegated auth tokens persist across container restarts. Without it, you'd need to re-authenticate every time the container starts.
