@@ -1,14 +1,43 @@
 {
   "name": "365center-mcp",
   "version": "1.0.0",
-  "description": "MCP server for Microsoft 365 and SharePoint automation",
+  "description": "MCP server for Microsoft 365 / Office 365 SharePoint — 32 tools for full read-write access to sites, documents, pages, metadata, navigation, and permissions",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "365center-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsc && node dist/index.js"
+    "dev": "tsc && node dist/index.js",
+    "prepublishOnly": "npm run build"
   },
+  "keywords": [
+    "mcp",
+    "sharepoint",
+    "microsoft-365",
+    "office-365",
+    "graph-api",
+    "claude",
+    "ai",
+    "document-management",
+    "enterprise",
+    "sharepoint-rest-api",
+    "mcp-server"
+  ],
+  "author": "Cristian Bucioacă <info@cristianb.cz> (https://cristianb.cz)",
+  "license": "BUSL-1.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Crscristi28/365center-mcp"
+  },
+  "homepage": "https://github.com/Crscristi28/365center-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "@azure/identity": "^4.9.1",
