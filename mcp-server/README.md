@@ -125,11 +125,23 @@ Pick ONE installation method below, and install the matching runtime:
 | **npx** (Option 2, fastest) | [Node.js 18 or newer](https://nodejs.org) |
 | **Node.js from source** (Option 3, for developers) | [Node.js 18 or newer](https://nodejs.org) + [Git](https://git-scm.com/downloads) |
 
-### 3. A Microsoft 365 tenant
+### 3. A Microsoft 365 tenant with admin access
 
-- Microsoft 365 tenant with SharePoint Online
-- **Global Administrator** or **Privileged Role Administrator** access (required to grant admin consent in Azure)
+You need a Microsoft 365 Business tenant — this is the account your company uses for Outlook, Teams, and SharePoint. `365center-mcp` does not work with personal Microsoft accounts (outlook.com, hotmail.com) — only work/school accounts on a real M365 Business tenant.
+
+**Getting a tenant:**
+- **Most likely case:** Your company already has one. Ask your IT admin.
+- **If you don't have one:** Sign up for any Microsoft 365 Business plan that includes SharePoint (Business Basic, Business Standard, or Business Premium) at https://www.microsoft.com/microsoft-365/business/compare-all-plans. Microsoft offers a 1-month free trial on these plans, but a credit card is required and the trial automatically converts to a paid subscription if not cancelled.
+- **Microsoft 365 Developer Program** (free tenant, 25 licenses) is an option only if you have an active Visual Studio Professional or Enterprise subscription — as of 2025, it is no longer open to personal accounts.
+
+Your M365 tenant automatically includes **Microsoft Entra ID** (formerly Azure Active Directory). You do NOT need a separate Azure subscription — App Registrations are free and included with every M365 tenant.
+
+**You need all of these before continuing:**
+
+- Microsoft 365 tenant with SharePoint Online included in the plan
+- **Global Administrator** or **Privileged Role Administrator** role on the tenant (required to grant admin consent in Azure)
 - At least one SharePoint site you want to manage
+- Access to https://portal.azure.com using the same M365 credentials
 
 ---
 
@@ -137,11 +149,11 @@ Pick ONE installation method below, and install the matching runtime:
 
 `365center-mcp` authenticates to Microsoft using an Azure App Registration. You need to create one and grant it permissions. This takes about 10 minutes the first time.
 
-### Step 1 — Create an App Registration
+### Step 1 — Sign in to Azure Portal and create an App Registration
 
-1. Go to https://portal.azure.com
-2. Search for **Microsoft Entra ID** (formerly Azure Active Directory)
-3. In the left menu, click **App registrations** → **New registration**
+1. Go to https://portal.azure.com and sign in with your Microsoft 365 account (the one with Global Administrator access)
+2. In the top search bar, type **Microsoft Entra ID** (formerly Azure Active Directory) and click the result
+3. In the Entra ID left menu, click **App registrations** → **New registration**
 4. Fill in:
    - **Name:** any name you like (e.g. `365center-mcp`)
    - **Supported account types:** `Accounts in this organizational directory only (Single tenant)`
