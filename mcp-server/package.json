@@ -1,6 +1,6 @@
 {
   "name": "365center-mcp",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "MCP server for Microsoft 365 / Office 365 SharePoint — 32 tools for full read-write access to sites, documents, pages, metadata, navigation, and permissions",
   "type": "module",
   "main": "dist/index.js",
