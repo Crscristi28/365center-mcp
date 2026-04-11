@@ -1,6 +1,6 @@
 # 365center-mcp
 
-**MCP server for Microsoft 365 / SharePoint — 32 tools for full read/write access**
+**MCP server for Microsoft 365 / SharePoint — 33 tools for full read/write access**
 
 Available on [GitHub](https://github.com/Crscristi28/365center-mcp) · [npm](https://www.npmjs.com/package/365center-mcp) · [Docker Hub](https://hub.docker.com/r/crscristi28/365center-mcp) · [cristianb.cz](https://cristianb.cz)
 
@@ -8,6 +8,8 @@ Available on [GitHub](https://github.com/Crscristi28/365center-mcp) · [npm](htt
 [![Docker Pulls](https://img.shields.io/docker/pulls/crscristi28/365center-mcp.svg)](https://hub.docker.com/r/crscristi28/365center-mcp)
 [![License](https://img.shields.io/badge/license-BUSL--1.1-blue.svg)](https://github.com/Crscristi28/365center-mcp/blob/main/LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org)
+
+Full visual walkthrough: **[Setup Guide PDF](SETUP-GUIDE.pdf)** — screenshots for every Azure setup step and all 3 installation methods.
 
 ---
 
@@ -19,8 +21,9 @@ Available on [GitHub](https://github.com/Crscristi28/365center-mcp) · [npm](htt
 - [Azure Setup (step-by-step)](#azure-setup-step-by-step)
 - [Installation](#installation)
   - [Option 1: Docker (recommended)](#option-1-docker-recommended)
-  - [Option 2: npx (fastest)](#option-2-npx-fastest)
+  - [Option 2: npx (easiest)](#option-2-npx-easiest)
   - [Option 3: Node.js from source](#option-3-nodejs-from-source)
+  - [Using Claude Code instead of Claude Desktop](#using-claude-code-instead-of-claude-desktop)
 - [First-time login (device code flow)](#first-time-login-device-code-flow)
 - [Configuration](#configuration)
 - [Usage examples](#usage-examples)
@@ -39,7 +42,7 @@ Available on [GitHub](https://github.com/Crscristi28/365center-mcp) · [npm](htt
 
 `365center-mcp` is a Model Context Protocol (MCP) server that gives Claude — and any other MCP-compatible AI client — full read/write access to Microsoft 365 SharePoint sites.
 
-It exposes **32 tools** covering SharePoint sites, document libraries, documents, pages, metadata columns, navigation, and permissions. Claude can list sites, upload and tag documents, create and publish pages, build navigation menus, manage permissions, and more — all through a single MCP connection.
+It exposes **33 tools** covering SharePoint sites, document libraries, documents, pages, metadata columns, navigation, and permissions. Claude can list sites, upload and download files, tag documents, create and publish pages, build navigation menus, manage permissions, and more — all through a single MCP connection.
 
 Built for manufacturing companies managing factory documentation in SharePoint, but works with any Microsoft 365 tenant.
 
@@ -53,17 +56,18 @@ Built for manufacturing companies managing factory documentation in SharePoint, 
 
 ## Features
 
-**32 tools** across 7 categories. All tools use Microsoft Graph API or SharePoint REST API — no middlemen.
+**33 tools** across 7 categories. All tools use Microsoft Graph API or SharePoint REST API — no middlemen.
 
 ### Sites (3 tools)
 - `list_sites` — List all SharePoint sites in the tenant
 - `get_site` — Get site by URL
 - `get_site_by_id` — Get site by ID
 
-### Documents (7 tools)
+### Documents (8 tools)
 - `list_document_libraries` — List document libraries (drives)
 - `list_documents` — List documents with both driveItemId and listItemId
 - `upload_document` — Upload files to SharePoint
+- `download_document` — Download files from SharePoint to a local path
 - `search_documents` — Search across documents
 - `delete_document` — Delete a document
 - `create_folder` — Create folders
@@ -122,7 +126,7 @@ Pick ONE installation method below, and install the matching runtime:
 | If you want to use... | You need to install |
 |---|---|
 | **Docker** (Option 1, recommended) | [Docker Desktop](https://www.docker.com/products/docker-desktop) |
-| **npx** (Option 2, fastest) | [Node.js 18 or newer](https://nodejs.org) |
+| **npx** (Option 2, easiest) | [Node.js 18 or newer](https://nodejs.org) |
 | **Node.js from source** (Option 3, for developers) | [Node.js 18 or newer](https://nodejs.org) + [Git](https://git-scm.com/downloads) |
 
 ### 3. A Microsoft 365 tenant with admin access
@@ -145,93 +149,32 @@ Your M365 tenant automatically includes **Microsoft Entra ID** (formerly Azure A
 
 ---
 
-## Azure Setup (step-by-step)
+## Azure Setup
 
-`365center-mcp` authenticates to Microsoft using an Azure App Registration. You need to create one and grant it permissions. This takes about 10 minutes the first time.
+`365center-mcp` authenticates to Microsoft using an Azure App Registration in your tenant's Microsoft Entra ID. You create one app, grant it permissions, generate a client secret, and collect 4 values for the config. About 10 minutes the first time.
 
-### Step 1 — Sign in to Azure Portal and create an App Registration
+**Full step-by-step instructions with screenshots are in the [Setup Guide PDF](SETUP-GUIDE.pdf)** — recommended for first-time users.
 
-1. Go to https://portal.azure.com and sign in with your Microsoft 365 account (the one with Global Administrator access)
-2. In the top search bar, type **Microsoft Entra ID** (formerly Azure Active Directory) and click the result
-3. In the Entra ID left menu, click **App registrations** → **New registration**
-4. Fill in:
-   - **Name:** any name you like (e.g. `365center-mcp`)
-   - **Supported account types:** `Accounts in this organizational directory only (Single tenant)`
-   - **Redirect URI:** leave empty
-5. Click **Register**
-6. On the Overview page, copy and save:
-   - **Application (client) ID** → this is your `AZURE_CLIENT_ID`
-   - **Directory (tenant) ID** → this is your `AZURE_TENANT_ID`
+**TL;DR for experienced Azure admins:**
 
-### Step 2 — Add Microsoft Graph Application permissions
+1. [portal.azure.com](https://portal.azure.com) → **Microsoft Entra ID** → **App registrations** → **New registration** → single tenant, no redirect URI
+2. **API permissions** — add and grant admin consent for:
+   - **Microsoft Graph (Application):** `Sites.ReadWrite.All`, `Sites.FullControl.All`, `Sites.Manage.All`, `Files.ReadWrite.All`
+   - **Microsoft Graph (Delegated):** `Sites.ReadWrite.All`, `Sites.FullControl.All`, `offline_access`
+   - **SharePoint (Delegated):** `AllSites.FullControl`
+3. **Authentication** → **Allow public client flows: Yes** (required for device code flow)
+4. **Certificates & secrets** → **New client secret** → copy the **Value** column immediately
 
-These permissions let the server read and write SharePoint data without a signed-in user.
+You will end up with 4 values you need for the config in the next step:
 
-1. In your App Registration, click **API permissions** → **Add a permission**
-2. Choose **Microsoft Graph** → **Application permissions**
-3. Add all of these:
-   - `Sites.ReadWrite.All`
-   - `Sites.FullControl.All`
-   - `Sites.Manage.All`
-   - `Files.ReadWrite.All`
-4. Click **Add permissions**
-
-### Step 3 — Add Microsoft Graph Delegated permissions
-
-These permissions are needed for features that require a signed-in user (navigation, permissions, Highlighted Content web part).
-
-1. Click **Add a permission** again
-2. Choose **Microsoft Graph** → **Delegated permissions**
-3. Add:
-   - `Sites.ReadWrite.All`
-   - `Sites.FullControl.All`
-   - `offline_access` (required for refresh tokens)
-4. Click **Add permissions**
-
-### Step 4 — Add SharePoint Delegated permission
-
-1. Click **Add a permission** again
-2. Choose **SharePoint** (under APIs my organization uses, or Microsoft APIs)
-3. Choose **Delegated permissions**
-4. Add:
-   - `AllSites.FullControl`
-5. Click **Add permissions**
-
-### Step 5 — Grant admin consent
-
-At the top of the API permissions page, click **Grant admin consent for [your tenant]**. Confirm. All permissions should now show a green checkmark.
-
-> If the button is grayed out, you are not a Global Administrator. Ask your M365 admin to do this step for you.
-
-### Step 6 — Enable "Allow public client flows"
-
-This is required for the device code login flow used by delegated auth.
-
-1. In your App Registration, click **Authentication**
-2. Scroll down to **Advanced settings**
-3. Set **Allow public client flows** to **Yes**
-4. Click **Save**
-
-### Step 7 — Create a client secret
-
-1. In your App Registration, click **Certificates & secrets** → **New client secret**
-2. Description: anything (e.g. `365center-mcp secret`)
-3. Expires: choose a duration (24 months recommended)
-4. Click **Add**
-5. **IMPORTANT:** Copy the **Value** column immediately — this is your `AZURE_CLIENT_SECRET`. You cannot see it again after leaving this page. Do NOT copy the "Secret ID" column.
-
-### Step 8 — Collect your environment variables
-
-You should now have all four values:
-
-| Variable | Where you got it |
+| Variable | Where to find it |
 |---|---|
-| `AZURE_TENANT_ID` | Step 1 — Overview page |
-| `AZURE_CLIENT_ID` | Step 1 — Overview page |
-| `AZURE_CLIENT_SECRET` | Step 7 — the **Value** you just copied |
+| `AZURE_TENANT_ID` | App Registration → Overview → Directory (tenant) ID |
+| `AZURE_CLIENT_ID` | App Registration → Overview → Application (client) ID |
+| `AZURE_CLIENT_SECRET` | The **Value** from the client secret you created |
 | `SHAREPOINT_DOMAIN` | Your SharePoint domain without `https://`, e.g. `contoso.sharepoint.com` |
 
-Keep these handy — you will paste them into your Claude Desktop config or a `.env` file in the next step.
+> **Need a Global Administrator** (or Privileged Role Administrator) to grant admin consent. Ask your IT admin if you don't have this role.
 
 ---
 
@@ -243,13 +186,17 @@ Pick the option that matches your setup.
 
 **Requires:** Docker Desktop running, Claude Desktop installed.
 
-**1. Pull the image:**
+**1. Quit Claude Desktop completely** (quit from the menu bar, not just close the window). Editing the config while Claude Desktop is running means your changes won't be picked up until a full restart.
+
+**2. Pull the image:**
 
 ```bash
 docker pull crscristi28/365center-mcp:latest
 ```
 
-**2. Add to your Claude Desktop config.**
+Or use the Docker Desktop GUI: **Docker Hub** tab → search `365center-mcp` → click the result by `crscristi28` → **Pull**. No terminal needed. See the [Setup Guide PDF](SETUP-GUIDE.pdf) for full steps.
+
+**3. Add to your Claude Desktop config.**
 
 Open `claude_desktop_config.json`:
 - **Mac:** `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -280,15 +227,15 @@ Replace the four `your-*` values with what you collected in Step 8 of the Azure 
 
 On Windows, use `C:\\Users\\YOUR_USERNAME\\.365center-mcp:/home/mcp/.365center-mcp` as the volume mount.
 
-**3. Restart Claude Desktop.** The server will appear in the MCP menu.
+**4. Open Claude Desktop.** The server will appear in the MCP menu with all 33 tools loaded.
 
 > **Why the volume mount?** The server caches delegated auth tokens in `~/.365center-mcp/token-cache.json`. Without the volume, you would need to re-authenticate every time Docker restarts.
 
-### Option 2: npx (fastest)
+### Option 2: npx (easiest)
 
 **Requires:** Node.js 18+, Claude Desktop installed.
 
-No installation needed — `npx` downloads and runs the package on demand. Just add this to your Claude Desktop config:
+This is the simplest method — you don't download anything yourself. Just edit your Claude Desktop config, and Claude Desktop will call `npx` automatically, which downloads `365center-mcp` from npm the first time it runs. Add this to your config:
 
 ```json
 {
@@ -307,7 +254,9 @@ No installation needed — `npx` downloads and runs the package on demand. Just 
 }
 ```
 
-Restart Claude Desktop.
+Restart Claude Desktop. The first start takes 15–30 seconds longer than usual — that is `npx` downloading `365center-mcp` from npm. Subsequent starts are instant because the package is cached locally.
+
+> **Note:** The npx config has a different structure from the Docker config — env vars go in a separate `env` object, not as `-e` flags in `args`. If you are switching from Docker to npx (or vice versa), replace the entire entry, don't just change the `command` field.
 
 ### Option 3: Node.js from source
 
@@ -365,6 +314,26 @@ The server starts and waits for MCP messages on stdin. Press Ctrl+C to stop.
 ```
 
 Replace `/absolute/path/to/mcp-server/dist/index.js` with the full path on your machine. Restart Claude Desktop.
+
+### Using Claude Code instead of Claude Desktop
+
+Claude Code is Anthropic's CLI client. Instead of editing a JSON config, MCP servers are added with `claude mcp add`.
+
+**Easiest way — let Claude Code do it.** Once Claude Code is installed, paste this into your Claude Code session (fill in your Azure values from Azure Setup Step 8):
+
+```
+Please install the 365center-mcp MCP server for me.
+You can find it on npm as "365center-mcp" or at
+github.com/Crscristi28/365center-mcp. Use the npx method.
+
+My Azure credentials:
+AZURE_TENANT_ID=...
+AZURE_CLIENT_ID=...
+AZURE_CLIENT_SECRET=...
+SHAREPOINT_DOMAIN=...
+```
+
+Claude Code will run the right `claude mcp add` command for you. For the manual command and Docker / source variants, see the [Setup Guide PDF](SETUP-GUIDE.pdf).
 
 ---
 

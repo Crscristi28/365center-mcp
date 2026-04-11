@@ -1,5 +1,7 @@
 import { graphClient } from "../auth.js";
 import fs from "fs";
+import path from "path";
+import { Readable } from "stream";
 
 export async function listDocumentLibraries(siteId: string) {
   const result = await graphClient
@@ -50,6 +52,54 @@ export async function uploadDocument(
     name: result.name,
     url: result.webUrl,
     size: result.size,
+  };
+}
+
+export async function downloadDocument(
+  siteId: string,
+  driveId: string,
+  itemId: string,
+  localPath: string
+) {
+  const metadata = await graphClient
+    .api(`/sites/${siteId}/drives/${driveId}/items/${itemId}`)
+    .select("name,size,file")
+    .get();
+
+  let targetPath = localPath;
+  try {
+    const stat = fs.statSync(localPath);
+    if (stat.isDirectory()) {
+      targetPath = path.join(localPath, metadata.name);
+    }
+  } catch {
+    // Path does not exist — treat as full file path, ensure parent dir exists
+    const parent = path.dirname(localPath);
+    if (parent && !fs.existsSync(parent)) {
+      fs.mkdirSync(parent, { recursive: true });
+    }
+  }
+
+  const webStream: ReadableStream = await graphClient
+    .api(`/sites/${siteId}/drives/${driveId}/items/${itemId}/content`)
+    .getStream();
+
+  const nodeStream = Readable.fromWeb(webStream as any);
+
+  await new Promise<void>((resolve, reject) => {
+    const writeStream = fs.createWriteStream(targetPath);
+    nodeStream.pipe(writeStream);
+    writeStream.on("finish", () => resolve());
+    writeStream.on("error", reject);
+    nodeStream.on("error", reject);
+  });
+
+  return {
+    id: itemId,
+    name: metadata.name,
+    size: metadata.size,
+    mimeType: metadata.file?.mimeType,
+    savedTo: path.resolve(targetPath),
   };
 }
 

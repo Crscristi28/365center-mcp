@@ -4,7 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { listSites, getSite, getSiteById } from "./tools/sites.js";
-import { listDocumentLibraries, listDocuments, uploadDocument, searchDocuments, deleteDocument, createFolder, getDocumentVersions } from "./tools/documents.js";
+import { listDocumentLibraries, listDocuments, uploadDocument, downloadDocument, searchDocuments, deleteDocument, createFolder, getDocumentVersions } from "./tools/documents.js";
 import { listColumns, createChoiceColumn, createTextColumn, setDocumentMetadata, getDocumentMetadata } from "./tools/metadata.js";
 import { listPages, createPage, createPageWithContent, addQuickLinksWebPart, publishPage, deletePage } from "./tools/pages.js";
 import { getNavigation, addNavigationLink, deleteNavigationLink } from "./tools/navigation.js";
@@ -86,6 +86,21 @@ server.tool(
   },
   async ({ siteId, driveId, fileName, filePath, folderId }) => {
     const result = await uploadDocument(siteId, driveId, fileName, filePath, folderId || "root");
+    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  "download_document",
+  "Download a document from a SharePoint document library to a local path. The localPath can be a full file path or a directory — if a directory, the original SharePoint filename is kept. Parent directories are created if missing.",
+  {
+    siteId: z.string().describe("SharePoint site ID"),
+    driveId: z.string().describe("Document library (drive) ID"),
+    itemId: z.string().describe("Drive item ID (from list_documents or search_documents)"),
+    localPath: z.string().describe("Local destination — either a full file path or a directory. If a directory, the original filename is preserved."),
+  },
+  async ({ siteId, driveId, itemId, localPath }) => {
+    const result = await downloadDocument(siteId, driveId, itemId, localPath);
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   }
 );

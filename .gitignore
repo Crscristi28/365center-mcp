@@ -9,3 +9,12 @@ m365-ai-dokumentace.html
 365center-mcp-setup-guide.html
 README.html
 test-*.ts
+
+# Local-only guide source (PDF is the published version in root)
+docs/
+
+# Local build plan (working notes, not for distribution)
+365center-mcp-build-plan.md
+
+# Work-in-progress Claude Code plugin (not ready for release)
+doccenter-plugin/
