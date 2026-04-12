@@ -3,6 +3,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import path from "path";
 import { listSites, getSite, getSiteById } from "./tools/sites.js";
 import { listDocumentLibraries, listDocuments, uploadDocument, uploadDocuments, downloadDocument, searchDocuments, deleteDocument, createFolder, getDocumentVersions } from "./tools/documents.js";
 import { listColumns, createChoiceColumn, createTextColumn, setDocumentMetadata, getDocumentMetadata } from "./tools/metadata.js";
@@ -12,9 +15,12 @@ import { getPageCanvasContent, setPageCanvasContent, copyPage, listSitePages } f
 import { createSite } from "./tools/sites-rest.js";
 import { getSitePermissions, getGroupMembers, addUserToGroup, removeUserFromGroup } from "./tools/permissions.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(path.join(__dirname, "..", "package.json"), "utf-8"));
+
 const server = new McpServer({
   name: "365center-mcp",
-  version: "1.0.0",
+  version: pkg.version,
 });
 
 // ============ SITES ============

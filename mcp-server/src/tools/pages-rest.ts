@@ -68,13 +68,22 @@ export async function copyPage(siteUrl: string, sourceFileName: string, targetFi
 export async function listSitePages(siteUrl: string) {
   const listId = await getSitePagesListId(siteUrl);
 
-  const result = await callSharePointRest(
-    siteUrl,
-    `/_api/web/lists(guid'${listId}')/items?$select=Id,Title,FileLeafRef&$top=100`,
-    "GET"
-  ) as any;
+  const allPages: any[] = [];
+  let nextPath: string | null = `/_api/web/lists(guid'${listId}')/items?$select=Id,Title,FileLeafRef&$top=100`;
 
-  return result.d.results.map((page: any) => ({
+  while (nextPath) {
+    const result: any = await callSharePointRest(siteUrl, nextPath, "GET");
+    allPages.push(...result.d.results);
+
+    if (result.d.__next) {
+      const nextUrl = new URL(result.d.__next);
+      nextPath = nextUrl.pathname + nextUrl.search;
+    } else {
+      nextPath = null;
+    }
+  }
+
+  return allPages.map((page: any) => ({
     itemId: page.Id,
     title: page.Title,
     fileName: page.FileLeafRef,

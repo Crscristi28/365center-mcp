@@ -157,8 +157,9 @@ export async function downloadDocument(
 }
 
 export async function searchDocuments(siteId: string, query: string) {
+  const safeQuery = query.replace(/'/g, "''");
   const result = await graphClient
-    .api(`/sites/${siteId}/drive/root/search(q='${query}')`)
+    .api(`/sites/${siteId}/drive/root/search(q='${safeQuery}')`)
     .get();
 
   return result.value.map((item: any) => ({
