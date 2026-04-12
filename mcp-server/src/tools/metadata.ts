@@ -1,4 +1,4 @@
-import { graphClient } from "../auth.js";
+import { graphClient, callSharePointRest } from "../auth.js";
 
 // Translate drive item ID to list item ID if needed
 async function resolveListItemId(siteId: string, listId: string, itemId: string, driveId?: string): Promise<string> {
@@ -53,29 +53,51 @@ export async function createChoiceColumn(
   choices: string[],
   allowMultiple: boolean = false
 ) {
-  const columnDef: any = {
-    name,
-    displayName,
-    choice: {
-      allowTextEntry: false,
-      choices,
-      displayAs: allowMultiple ? "checkBoxes" : "dropDownMenu",
-    },
-  };
+  if (!allowMultiple) {
+    const columnDef = {
+      name,
+      displayName,
+      choice: {
+        allowTextEntry: false,
+        choices,
+        displayAs: "dropDownMenu" as const,
+      },
+    };
 
-  if (allowMultiple) {
-    columnDef.indexed = false;
+    const result = await graphClient
+      .api(`/sites/${siteId}/lists/${listId}/columns`)
+      .post(columnDef);
+
+    return {
+      id: result.id,
+      name: result.name,
+      displayName: result.displayName,
+      allowMultiple: false,
+    };
   }
 
-  const result = await graphClient
-    .api(`/sites/${siteId}/lists/${listId}/columns`)
-    .post(columnDef);
+  const site = await graphClient.api(`/sites/${siteId}`).select("webUrl").get();
+  const siteUrl = site.webUrl;
+
+  const result = await callSharePointRest(
+    siteUrl,
+    `/_api/web/lists/getByTitle('${listId}')/fields`,
+    "POST",
+    {
+      __metadata: { type: "SP.FieldMultiChoice" },
+      FieldTypeKind: 15,
+      Title: displayName,
+      StaticName: name,
+      InternalName: name,
+      Choices: { results: choices },
+    }
+  ) as any;
 
   return {
-    id: result.id,
-    name: result.name,
-    displayName: result.displayName,
-    allowMultiple,
+    id: result.d?.Id || result.Id,
+    name: name,
+    displayName: displayName,
+    allowMultiple: true,
   };
 }
 
@@ -112,9 +134,19 @@ export async function setDocumentMetadata(
 ) {
   const resolvedId = await resolveListItemId(siteId, listId, itemId, driveId);
 
+  const patchFields: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (Array.isArray(value)) {
+      patchFields[`${key}@odata.type`] = "Collection(Edm.String)";
+      patchFields[key] = value;
+    } else {
+      patchFields[key] = value;
+    }
+  }
+
   const result = await graphClient
     .api(`/sites/${siteId}/lists/${listId}/items/${resolvedId}/fields`)
-    .patch(fields);
+    .patch(patchFields);
 
   return result;
 }

@@ -1,6 +1,6 @@
 # 365center-mcp
 
-**MCP server for Microsoft 365 / SharePoint — 33 tools for full read/write access**
+**MCP server for Microsoft 365 / SharePoint — 35 tools for full read/write access**
 
 Available on [GitHub](https://github.com/Crscristi28/365center-mcp) · [npm](https://www.npmjs.com/package/365center-mcp) · [Docker Hub](https://hub.docker.com/r/crscristi28/365center-mcp) · [cristianb.cz](https://cristianb.cz)
 
@@ -9,7 +9,7 @@ Available on [GitHub](https://github.com/Crscristi28/365center-mcp) · [npm](htt
 [![License](https://img.shields.io/badge/license-BUSL--1.1-blue.svg)](https://github.com/Crscristi28/365center-mcp/blob/main/LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org)
 
-Full visual walkthrough: **[Setup Guide PDF](SETUP-GUIDE.pdf)** — screenshots for every Azure setup step and all 3 installation methods.
+Full visual walkthrough: **[Setup Guide PDF](https://github.com/Crscristi28/365center-mcp/blob/main/SETUP-GUIDE.pdf)** — screenshots for every Azure setup step and all 3 installation methods.
 
 ---
 
@@ -42,7 +42,7 @@ Full visual walkthrough: **[Setup Guide PDF](SETUP-GUIDE.pdf)** — screenshots 
 
 `365center-mcp` is a Model Context Protocol (MCP) server that gives Claude — and any other MCP-compatible AI client — full read/write access to Microsoft 365 SharePoint sites.
 
-It exposes **33 tools** covering SharePoint sites, document libraries, documents, pages, metadata columns, navigation, and permissions. Claude can list sites, upload and download files, tag documents, create and publish pages, build navigation menus, manage permissions, and more — all through a single MCP connection.
+It exposes **35 tools** covering SharePoint sites, document libraries, documents, pages, metadata columns, navigation, and permissions. Claude can list sites, upload and download files, tag documents, create and publish pages, build navigation menus, manage permissions, and more — all through a single MCP connection.
 
 Built for manufacturing companies managing factory documentation in SharePoint, but works with any Microsoft 365 tenant.
 
@@ -56,17 +56,19 @@ Built for manufacturing companies managing factory documentation in SharePoint, 
 
 ## Features
 
-**33 tools** across 7 categories. All tools use Microsoft Graph API or SharePoint REST API — no middlemen.
+**35 tools** across 7 categories. All tools use Microsoft Graph API or SharePoint REST API — no middlemen.
 
-### Sites (3 tools)
+### Sites (4 tools)
 - `list_sites` — List all SharePoint sites in the tenant
 - `get_site` — Get site by URL
 - `get_site_by_id` — Get site by ID
+- `create_site` — Create a new Communication or Team site
 
-### Documents (8 tools)
+### Documents (9 tools)
 - `list_document_libraries` — List document libraries (drives)
 - `list_documents` — List documents with both driveItemId and listItemId
-- `upload_document` — Upload files to SharePoint
+- `upload_document` — Upload a file to SharePoint (auto session upload for files over 4 MB)
+- `upload_documents` — Upload multiple files with optional metadata in one call (max 30 per call)
 - `download_document` — Download files from SharePoint to a local path
 - `search_documents` — Search across documents
 - `delete_document` — Delete a document
@@ -227,7 +229,7 @@ Replace the four `your-*` values with what you collected in Step 8 of the Azure 
 
 On Windows, use `C:\\Users\\YOUR_USERNAME\\.365center-mcp:/home/mcp/.365center-mcp` as the volume mount.
 
-**4. Open Claude Desktop.** The server will appear in the MCP menu with all 33 tools loaded.
+**4. Open Claude Desktop.** The server will appear in the MCP menu with all 35 tools loaded.
 
 > **Why the volume mount?** The server caches delegated auth tokens in `~/.365center-mcp/token-cache.json`. Without the volume, you would need to re-authenticate every time Docker restarts.
 

@@ -4,11 +4,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { listSites, getSite, getSiteById } from "./tools/sites.js";
-import { listDocumentLibraries, listDocuments, uploadDocument, downloadDocument, searchDocuments, deleteDocument, createFolder, getDocumentVersions } from "./tools/documents.js";
+import { listDocumentLibraries, listDocuments, uploadDocument, uploadDocuments, downloadDocument, searchDocuments, deleteDocument, createFolder, getDocumentVersions } from "./tools/documents.js";
 import { listColumns, createChoiceColumn, createTextColumn, setDocumentMetadata, getDocumentMetadata } from "./tools/metadata.js";
 import { listPages, createPage, createPageWithContent, addQuickLinksWebPart, publishPage, deletePage } from "./tools/pages.js";
 import { getNavigation, addNavigationLink, deleteNavigationLink } from "./tools/navigation.js";
 import { getPageCanvasContent, setPageCanvasContent, copyPage, listSitePages } from "./tools/pages-rest.js";
+import { createSite } from "./tools/sites-rest.js";
 import { getSitePermissions, getGroupMembers, addUserToGroup, removeUserFromGroup } from "./tools/permissions.js";
 
 const server = new McpServer({
@@ -48,6 +49,20 @@ server.tool(
   }
 );
 
+server.tool(
+  "create_site",
+  "Create a new SharePoint site. Template: 'communication' (default) for publishing/documentation sites, 'team' for collaboration. Returns siteId for use in all other tools. Site creation takes a few seconds. Uses delegated auth (device code flow on first use).",
+  {
+    title: z.string().describe("Display name for the new site"),
+    urlSlug: z.string().describe("URL slug — the site will be at https://{domain}/sites/{urlSlug}"),
+    template: z.enum(["communication", "team"]).optional().describe("Site template: 'communication' (default) or 'team'"),
+  },
+  async ({ title, urlSlug, template }) => {
+    const result = await createSite(title, urlSlug, template || "communication");
+    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
 // ============ DOCUMENTS ============
 
 server.tool(
@@ -76,7 +91,7 @@ server.tool(
 
 server.tool(
   "upload_document",
-  "Upload a local file to a SharePoint document library. File is uploaded to the root folder by default, or to a specific folder if folderId is provided. After upload, use set_document_metadata to set metadata fields on the document.",
+  "Upload a local file to a SharePoint document library. File is uploaded to the root folder by default, or to a specific folder if folderId is provided. After upload, use set_document_metadata to set metadata fields on the document. Supports files up to 250 GB (automatic session upload for files over 4 MB).",
   {
     siteId: z.string().describe("SharePoint site ID"),
     driveId: z.string().describe("Document library (drive) ID"),
@@ -102,6 +117,29 @@ server.tool(
   async ({ siteId, driveId, itemId, localPath }) => {
     const result = await downloadDocument(siteId, driveId, itemId, localPath);
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  "upload_documents",
+  "Upload one or more files to SharePoint, optionally setting metadata on each. Max 30 files per call. Files over 4 MB use resumable upload automatically. 500ms delay between files for API rate limits. Returns per-file status for upload and metadata independently.",
+  {
+    siteId: z.string().describe("SharePoint site ID"),
+    driveId: z.string().describe("Document library (drive) ID"),
+    listId: z.string().optional().describe("List ID — required only if setting metadata via fields"),
+    folderId: z.string().optional().describe("Target folder ID (default: root)"),
+    files: z.array(z.object({
+      fileName: z.string().describe("Name for the file in SharePoint"),
+      filePath: z.string().describe("Local file path to upload"),
+      fields: z.string().optional().describe("JSON string of metadata fields to set after upload, e.g. '{\"Oblast\":\"Linka1\",\"WS\":\"WS9\"}'"),
+    })).describe("Array of files to upload (max 30)"),
+  },
+  async ({ siteId, driveId, listId, folderId, files }) => {
+    if (files.length > 30) {
+      return { content: [{ type: "text", text: JSON.stringify({ error: "Maximum 30 files per call. Split into multiple calls." }) }] };
+    }
+    const results = await uploadDocuments(siteId, driveId, listId, files, folderId || "root");
+    return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
   }
 );
 
