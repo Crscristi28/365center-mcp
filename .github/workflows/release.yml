@@ -69,6 +69,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: crscristi28/365center-mcp
           readme-filepath: ./README.md
+          short-description: "MCP server for Microsoft 365 / SharePoint — full read-write via Graph API and REST API"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

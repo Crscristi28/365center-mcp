@@ -73,7 +73,7 @@ server.tool(
 
 server.tool(
   "list_document_libraries",
-  "List all document libraries (drives) in a SharePoint site. Returns driveId for each library — use driveId in list_documents, upload_document, delete_document, and other document tools. Also returns listId for metadata operations.",
+  "List all document libraries (drives) in a SharePoint site. Returns driveId and listId for each library. Use driveId for file operations (upload, download, delete, list, versions). Use listId for metadata operations (list_columns, get/set_document_metadata, create columns). Call this first when working with documents — you need both IDs.",
   { siteId: z.string().describe("SharePoint site ID") },
   async ({ siteId }) => {
     const libraries = await listDocumentLibraries(siteId);
@@ -97,7 +97,7 @@ server.tool(
 
 server.tool(
   "upload_document",
-  "Upload a local file to a SharePoint document library. File is uploaded to the root folder by default, or to a specific folder if folderId is provided. After upload, use set_document_metadata to set metadata fields on the document. Supports files up to 250 GB (automatic session upload for files over 4 MB).",
+  "Upload a single local file to a SharePoint document library. Root folder by default, or specific folder via folderId. After upload, use set_document_metadata to tag it. Supports up to 250 GB (auto session upload for >4 MB). For multiple files, prefer upload_documents — up to 30 files per call with inline metadata and built-in rate limit protection. NOTE: If using Highlighted Content web parts, filename prefix determines filtering. The 'Title includes the words' filter is SUBSTRING-based — e.g. 'Report' will also match 'ReportQ1' or 'ReportAnnual'. Use non-overlapping prefixes.",
   {
     siteId: z.string().describe("SharePoint site ID"),
     driveId: z.string().describe("Document library (drive) ID"),
@@ -128,7 +128,7 @@ server.tool(
 
 server.tool(
   "upload_documents",
-  "Upload one or more files to SharePoint, optionally setting metadata on each. Max 30 files per call. Files over 4 MB use resumable upload automatically. 500ms delay between files for API rate limits. Returns per-file status for upload and metadata independently.",
+  "Batch upload up to 30 files to SharePoint with optional inline metadata per file. Files >4 MB use resumable upload. Built-in 500ms delay between files prevents HTTP 429 from Microsoft. Returns per-file status for upload and metadata independently. When setting metadata, listId is required. Choice values must match predefined choices exactly (case-sensitive). For large batches, split into multiple calls of max 30 files each. Same substring warning as upload_document — if using Highlighted Content web parts, filename prefixes determine which section shows which documents.",
   {
     siteId: z.string().describe("SharePoint site ID"),
     driveId: z.string().describe("Document library (drive) ID"),
@@ -151,7 +151,7 @@ server.tool(
 
 server.tool(
   "search_documents",
-  "Search for documents in a SharePoint site",
+  "Search for documents across all libraries in a SharePoint site by keyword. Search indexes may take a few minutes to reflect newly uploaded documents.",
   {
     siteId: z.string().describe("SharePoint site ID"),
     query: z.string().describe("Search query"),
@@ -209,7 +209,7 @@ server.tool(
 
 server.tool(
   "list_columns",
-  "List all custom metadata columns in a SharePoint list/library. The listId can be the list display name (e.g. 'Dokumenty') or the list GUID. Returns column name, type, and choices for choice columns. Use this to discover available metadata fields before calling set_document_metadata.",
+  "List custom metadata columns in a SharePoint list/library. listId can be display name (e.g. 'Documents') or GUID. Returns internal name, display name, type, and choices. Call this before set_document_metadata — internal column names (used in API) often differ from display names (shown in UI). Using wrong name fails silently.",
   {
     siteId: z.string().describe("SharePoint site ID"),
     listId: z.string().describe("List or document library list ID"),
@@ -254,7 +254,7 @@ server.tool(
 
 server.tool(
   "set_document_metadata",
-  "Set metadata fields on a document. The 'fields' parameter is a JSON string of key-value pairs where keys are column internal names. For choice columns, value must match one of the predefined choices exactly. For multi-select choice columns, value is an array of strings. IMPORTANT: columns must exist before setting values — use list_columns to check, or create_choice_column/create_text_column to create them. Accepts both drive item ID and numeric list item ID — if using drive item ID, provide driveId.",
+  "Set metadata fields on a document. 'fields' is a JSON string of key-value pairs using column internal names. Choice values must match predefined choices exactly (case-sensitive). Multi-select: use array of strings. Columns must exist first — check with list_columns. Accepts drive item ID (requires driveId) or numeric list item ID. Only change fields the user asked for — leave others untouched. TIP: Changing a Status field (e.g. to 'Pending Approval') can trigger Power Automate flows with 'When item modified' trigger — no HTTP webhooks or extra tools needed.",
   {
     siteId: z.string().describe("SharePoint site ID"),
     listId: z.string().describe("List or document library list ID"),
@@ -288,7 +288,7 @@ server.tool(
 
 server.tool(
   "list_pages",
-  "List all pages in a SharePoint site. Returns page ID, name, title, URL, and publishing state (checkout/published). Use the page ID for publish_page, delete_page, and add_quick_links.",
+  "List all pages via Graph API. Returns page GUID, name, title, URL, and state. Use page GUID for publish_page, delete_page, add_quick_links. NOTE: Canvas tools (get/set_page_canvas_content) need NUMERIC item IDs from list_site_pages instead — GUIDs from this tool won't work there.",
   { siteId: z.string().describe("SharePoint site ID") },
   async ({ siteId }) => {
     const pages = await listPages(siteId);
@@ -298,7 +298,7 @@ server.tool(
 
 server.tool(
   "create_page",
-  "Create a new empty SharePoint page. Page is created in 'checkout' state (draft) — use publish_page to make it visible to users. The 'name' becomes the URL slug (e.g. 'my-page' → my-page.aspx). Use create_page_with_content if you need to add text/sections at creation time.",
+  "Create a new empty page in checkout/draft state. MUST call publish_page after to make it visible. 'name' becomes URL slug (e.g. 'my-page' → my-page.aspx). For pages with text sections, use create_page_with_content. For pages with web parts (Highlighted Content etc.), create empty page first, then set_page_canvas_content, then publish_page.",
   {
     siteId: z.string().describe("SharePoint site ID"),
     title: z.string().describe("Page title"),
@@ -312,7 +312,7 @@ server.tool(
 
 server.tool(
   "create_page_with_content",
-  "Create a SharePoint page with sections containing HTML content. Page is created in 'checkout' state — use publish_page to make it visible. The 'sections' parameter is a JSON string array. Available layouts: oneColumn (width:12), twoColumns (width:6+6), threeColumns (width:4+4+4), oneThirdLeftColumn (width:4+8), oneThirdRightColumn (width:8+4), fullWidth (width:12). Each column contains HTML text. Example: [{\"layout\":\"twoColumns\",\"columns\":[{\"width\":6,\"html\":\"<h2>Left</h2>\"},{\"width\":6,\"html\":\"<h2>Right</h2>\"}]}]",
+  "Create a page with HTML text sections. Draft state — MUST call publish_page after. Sections is a JSON string array. Layouts: oneColumn (12), twoColumns (6+6), threeColumns (4+4+4), oneThirdLeftColumn (4+8), oneThirdRightColumn (8+4), fullWidth (12). Example: [{\"layout\":\"twoColumns\",\"columns\":[{\"width\":6,\"html\":\"<h2>Left</h2>\"},{\"width\":6,\"html\":\"<h2>Right</h2>\"}]}]. NOTE: Only supports text/HTML. For web parts like Highlighted Content, use create_page + set_page_canvas_content instead.",
   {
     siteId: z.string().describe("SharePoint site ID"),
     title: z.string().describe("Page title"),
@@ -345,7 +345,7 @@ server.tool(
 
 server.tool(
   "publish_page",
-  "Publish a SharePoint page to make it visible to all site users. Pages are created in 'checkout' (draft) state and must be published to appear on the site. After publishing, the page gets a version number and is accessible via its URL.",
+  "Publish a page to make it visible. MUST call after: create_page, create_page_with_content, or set_page_canvas_content — without publishing, the page appears EMPTY to users. This is the most commonly forgotten step.",
   {
     siteId: z.string().describe("SharePoint site ID"),
     pageId: z.string().describe("Page ID"),
@@ -385,7 +385,7 @@ server.tool(
 
 server.tool(
   "add_navigation_link",
-  "Add a link to the top navigation menu of a SharePoint site. Uses SharePoint REST API. The siteUrl must be full URL with https://. The url parameter is the link target (can be internal SharePoint URL or external URL).",
+  "Add a link to top navigation. REST API, delegated auth. siteUrl must include https://. url = link target (internal or external). Check get_navigation first to avoid duplicates.",
   {
     siteUrl: z.string().describe("Full SharePoint site URL"),
     title: z.string().describe("Navigation link title"),
@@ -467,7 +467,7 @@ server.tool(
 
 server.tool(
   "get_page_canvas_content",
-  "Read the raw CanvasContent1 of a SharePoint page via REST API. Returns the full HTML/JSON content of the page including all web parts. Use this to inspect how existing pages are built (especially Highlighted Content web parts) so you can replicate them. The pageItemId is the numeric list item ID from Site Pages list — use list_site_pages to find it. Uses delegated auth.",
+  "Read raw CanvasContent1 of a page via REST API. Returns full HTML including all web parts. Use to inspect existing page structure before modifying. pageItemId = numeric ID from list_site_pages (NOT GUID from list_pages). Uses delegated auth. ALWAYS read before calling set_page_canvas_content — understand what's there before replacing it.",
   {
     siteUrl: z.string().describe("Full SharePoint site URL (e.g. https://contoso.sharepoint.com/sites/MySite)"),
     pageItemId: z.number().describe("Numeric item ID from Site Pages list (use list_site_pages to find it)"),
@@ -480,7 +480,7 @@ server.tool(
 
 server.tool(
   "set_page_canvas_content",
-  "Write raw CanvasContent1 to a SharePoint page via REST API. This replaces the ENTIRE page content. Use get_page_canvas_content first to understand the format. WARNING: this overwrites all existing content on the page. Useful for adding Highlighted Content web parts or any web part not supported by Graph API. Uses delegated auth.",
+  "Replace entire page canvas via REST API. Overwrites ALL existing content. Uses delegated auth. pageItemId = numeric ID from list_site_pages. MUST call publish_page after — page reverts to draft and appears EMPTY without it. Canvas HTML rules: use pre-encoded entities directly (&#123; &#125; &#58; &quot;) — never JSON.stringify then replace (double-escaping on file round-trips). Omit titleHTML property (causes escaping corruption) — titles render from searchablePlainTexts. Read current canvas with get_page_canvas_content first.",
   {
     siteUrl: z.string().describe("Full SharePoint site URL"),
     pageItemId: z.number().describe("Numeric item ID from Site Pages list"),
@@ -508,7 +508,7 @@ server.tool(
 
 server.tool(
   "list_site_pages",
-  "List all pages in a SharePoint site via REST API. Returns numeric item IDs needed for get_page_canvas_content and set_page_canvas_content. Also returns title and file name. Uses delegated auth.",
+  "List pages via REST API. Returns NUMERIC item IDs needed for canvas tools (get/set_page_canvas_content). Also returns title and file name. Uses delegated auth. NOTE: This gives numeric IDs for canvas operations. For page GUIDs (needed by publish_page, delete_page), use list_pages instead.",
   {
     siteUrl: z.string().describe("Full SharePoint site URL"),
   },
