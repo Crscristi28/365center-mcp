@@ -1,12 +1,30 @@
 import { graphClient } from "../auth.js";
+import { fetchSitePageItemIdMap } from "./pages-rest.js";
 
-export async function listPages(siteId: string) {
-  const result = await graphClient
+export async function listPages(siteId: string, siteUrl?: string, includeItemId: boolean = false) {
+  const graphResult = await graphClient
     .api(`/sites/${siteId}/pages`)
     .get();
 
-  return result.value.map((page: any) => ({
+  if (!includeItemId) {
+    return graphResult.value.map((page: any) => ({
+      id: page.id,
+      name: page.name,
+      title: page.title,
+      url: page.webUrl,
+      publishingState: page.publishingState?.level,
+    }));
+  }
+
+  if (!siteUrl) {
+    throw new Error("siteUrl is required when includeItemId is true");
+  }
+
+  const fileNameToItemId = await fetchSitePageItemIdMap(siteUrl);
+
+  return graphResult.value.map((page: any) => ({
     id: page.id,
+    itemId: fileNameToItemId.get(page.name),
     name: page.name,
     title: page.title,
     url: page.webUrl,

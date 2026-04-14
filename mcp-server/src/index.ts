@@ -11,7 +11,7 @@ import { listDocumentLibraries, listDocuments, uploadDocument, uploadDocuments, 
 import { listColumns, createChoiceColumn, createTextColumn, setDocumentMetadata, getDocumentMetadata } from "./tools/metadata.js";
 import { listPages, createPage, createPageWithContent, addQuickLinksWebPart, publishPage, deletePage } from "./tools/pages.js";
 import { getNavigation, addNavigationLink, deleteNavigationLink } from "./tools/navigation.js";
-import { getPageCanvasContent, setPageCanvasContent, copyPage, listSitePages } from "./tools/pages-rest.js";
+import { getPageCanvasContent, getPageCanvasSummary, setPageCanvasContent, copyPage, patchPageCanvasWebpart } from "./tools/pages-rest.js";
 import { createSite } from "./tools/sites-rest.js";
 import { getSitePermissions, getGroupMembers, addUserToGroup, removeUserFromGroup } from "./tools/permissions.js";
 
@@ -83,14 +83,15 @@ server.tool(
 
 server.tool(
   "list_documents",
-  "List documents in a document library folder. Returns both driveItemId and listItemId for each document. Use driveItemId (+ driveId) for file operations (download, delete, versions). Use listItemId (or driveItemId + driveId) for metadata operations (get/set_document_metadata). The listId parameter for metadata tools can be the list display name (e.g. 'Dokumenty') or the list GUID.",
+  "List documents in a document library folder. Returns both driveItemId and listItemId for each document. Use driveItemId (+ driveId) for file operations (download, delete, versions). Use listItemId (or driveItemId + driveId) for metadata operations (get/set_document_metadata). The listId parameter for metadata tools can be the list display name (e.g. 'Dokumenty') or the list GUID. For exploration or listing large folders, set fields: \"minimal\" (~74% token savings, returns id/name/isFolder/size only). Use fields: \"all\" (default) when you need URL, mimeType, dates, or metadata.",
   {
     siteId: z.string().describe("SharePoint site ID"),
     driveId: z.string().describe("Document library (drive) ID"),
     folderId: z.string().optional().describe("Folder ID (default: root)"),
+    fields: z.enum(["all", "minimal"]).optional().describe("Field set: 'all' (default, full metadata) or 'minimal' (id, name, isFolder, size only — saves ~74% tokens for exploration)"),
   },
-  async ({ siteId, driveId, folderId }) => {
-    const docs = await listDocuments(siteId, driveId, folderId || "root");
+  async ({ siteId, driveId, folderId, fields }) => {
+    const docs = await listDocuments(siteId, driveId, folderId || "root", fields || "all");
     return { content: [{ type: "text", text: JSON.stringify(docs, null, 2) }] };
   }
 );
@@ -288,10 +289,14 @@ server.tool(
 
 server.tool(
   "list_pages",
-  "List all pages via Graph API. Returns page GUID, name, title, URL, and state. Use page GUID for publish_page, delete_page, add_quick_links. NOTE: Canvas tools (get/set_page_canvas_content) need NUMERIC item IDs from list_site_pages instead — GUIDs from this tool won't work there.",
-  { siteId: z.string().describe("SharePoint site ID") },
-  async ({ siteId }) => {
-    const pages = await listPages(siteId);
+  "List all pages via Graph API (app-only auth). Returns page GUID (id), name, title, URL, and publishing state. Use page GUID for publish_page, delete_page, add_quick_links. To include numeric itemId (needed for canvas tools: get_page_canvas_content, set_page_canvas_content, get_page_canvas_summary, patch_page_canvas_webpart), set includeItemId: true — requires delegated auth (one-time device code login) and siteUrl. Without includeItemId, this tool works app-only with no login flow.",
+  {
+    siteId: z.string().describe("SharePoint site ID"),
+    siteUrl: z.string().optional().describe("Full SharePoint site URL (required when includeItemId is true)"),
+    includeItemId: z.boolean().optional().describe("If true, also fetch numeric itemId for each page (requires delegated auth and siteUrl)"),
+  },
+  async ({ siteId, siteUrl, includeItemId }) => {
+    const pages = await listPages(siteId, siteUrl, includeItemId || false);
     return { content: [{ type: "text", text: JSON.stringify(pages, null, 2) }] };
   }
 );
@@ -467,10 +472,10 @@ server.tool(
 
 server.tool(
   "get_page_canvas_content",
-  "Read raw CanvasContent1 of a page via REST API. Returns full HTML including all web parts. Use to inspect existing page structure before modifying. pageItemId = numeric ID from list_site_pages (NOT GUID from list_pages). Uses delegated auth. ALWAYS read before calling set_page_canvas_content — understand what's there before replacing it.",
+  "Read RAW CanvasContent1 HTML (~3 000 tokens per 5-WS page, 97.5% boilerplate). ⚠️ ONLY use when you need full HTML string to pass to set_page_canvas_content (structural edits: adding or removing web parts). For read-only questions (\"what's on this page\", audit, exploration), ALWAYS use get_page_canvas_summary instead — it returns structured JSON ~30× smaller. pageItemId = numeric ID from list_pages (call with includeItemId: true). Uses delegated auth.",
   {
     siteUrl: z.string().describe("Full SharePoint site URL (e.g. https://contoso.sharepoint.com/sites/MySite)"),
-    pageItemId: z.number().describe("Numeric item ID from Site Pages list (use list_site_pages to find it)"),
+    pageItemId: z.number().describe("Numeric item ID from list_pages (call with includeItemId: true to get it)"),
   },
   async ({ siteUrl, pageItemId }) => {
     const result = await getPageCanvasContent(siteUrl, pageItemId);
@@ -479,15 +484,49 @@ server.tool(
 );
 
 server.tool(
+  "get_page_canvas_summary",
+  "Returns structured page overview: web part types, titles, filter values, section layout. ~400 B JSON vs ~15 KB raw HTML for get_page_canvas_content. ✅ USE THIS for: exploration, audit, \"what's on this page\", planning edits, reading web part titles/filters. Recognizes HighlightedContent and QuickLinks web parts; unknown web part types return as type \"Unknown\" with webPartId. ❌ Do NOT use get_page_canvas_content unless you need the full HTML for set_page_canvas_content (structural edits). pageItemId = numeric ID from list_pages (call with includeItemId: true). Uses delegated auth.",
+  {
+    siteUrl: z.string().describe("Full SharePoint site URL (e.g. https://contoso.sharepoint.com/sites/MySite)"),
+    pageItemId: z.number().describe("Numeric item ID from list_pages (call with includeItemId: true to get it)"),
+  },
+  async ({ siteUrl, pageItemId }) => {
+    const result = await getPageCanvasSummary(siteUrl, pageItemId);
+    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
   "set_page_canvas_content",
-  "Replace entire page canvas via REST API. Overwrites ALL existing content. Uses delegated auth. pageItemId = numeric ID from list_site_pages. MUST call publish_page after — page reverts to draft and appears EMPTY without it. Canvas HTML rules: use pre-encoded entities directly (&#123; &#125; &#58; &quot;) — never JSON.stringify then replace (double-escaping on file round-trips). Omit titleHTML property (causes escaping corruption) — titles render from searchablePlainTexts. Read current canvas with get_page_canvas_content first.",
+  "Replace entire page canvas via REST API. Overwrites ALL existing content. Uses delegated auth. pageItemId = numeric ID from list_pages (call with includeItemId: true). MUST call publish_page after — page reverts to draft and appears EMPTY without it. Canvas HTML rules: use pre-encoded entities directly (&#123; &#125; &#58; &quot;) — never JSON.stringify then replace (double-escaping on file round-trips). Omit titleHTML property (causes escaping corruption) — titles render from searchablePlainTexts. Read current canvas with get_page_canvas_content first.",
   {
     siteUrl: z.string().describe("Full SharePoint site URL"),
-    pageItemId: z.number().describe("Numeric item ID from Site Pages list"),
+    pageItemId: z.number().describe("Numeric item ID from list_pages (call with includeItemId: true to get it)"),
     canvasContent: z.string().describe("Raw HTML/JSON canvas content string — get format from get_page_canvas_content on an existing page"),
   },
   async ({ siteUrl, pageItemId, canvasContent }) => {
     const result = await setPageCanvasContent(siteUrl, pageItemId, canvasContent);
+    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  "patch_page_canvas_webpart",
+  "Surgically update web part properties (title, filter, layout, maxItems) on a page without Claude handling the full canvas. MCP handles read-modify-write internally — Claude never sees the full canvas HTML. ✅ USE THIS for any title/filter/layout change on existing web parts. Saves ~6 000 tokens vs get_page_canvas_content + set_page_canvas_content pattern. Use set_page_canvas_content only for structural changes (adding/removing web parts). After patching, call publish_page to make changes visible.",
+  {
+    siteUrl: z.string().describe("Full SharePoint site URL"),
+    pageItemId: z.number().describe("Numeric item ID from list_pages (call with includeItemId: true to get it)"),
+    patches: z.array(z.object({
+      instanceId: z.string().describe("Web part instanceId from get_page_canvas_summary (e.g. 'ws1-l1-inst')"),
+      title: z.string().optional().describe("New title — updates searchablePlainTexts.title in webpartdata AND the data-sp-htmlproperties div"),
+      filter: z.string().optional().describe("New filter value — HighlightedContent only (query.filters[0].value)"),
+      maxItems: z.number().optional().describe("New maxItemsPerPage — HighlightedContent only"),
+      layout: z.string().optional().describe("New layoutId (e.g. 'CompactGrid', 'FilmStrip')"),
+    })).describe("Array of patches. Each patch targets one web part by instanceId and changes one or more properties."),
+    verify: z.boolean().optional().describe("After write, read back and verify new values are present (default: true). Set false to skip verification for speed."),
+  },
+  async ({ siteUrl, pageItemId, patches, verify }) => {
+    const result = await patchPageCanvasWebpart(siteUrl, pageItemId, patches, verify !== false);
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -502,18 +541,6 @@ server.tool(
   },
   async ({ siteUrl, sourceFileName, targetFileName }) => {
     const result = await copyPage(siteUrl, sourceFileName, targetFileName);
-    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-  }
-);
-
-server.tool(
-  "list_site_pages",
-  "List pages via REST API. Returns NUMERIC item IDs needed for canvas tools (get/set_page_canvas_content). Also returns title and file name. Uses delegated auth. NOTE: This gives numeric IDs for canvas operations. For page GUIDs (needed by publish_page, delete_page), use list_pages instead.",
-  {
-    siteUrl: z.string().describe("Full SharePoint site URL"),
-  },
-  async ({ siteUrl }) => {
-    const result = await listSitePages(siteUrl);
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   }
 );

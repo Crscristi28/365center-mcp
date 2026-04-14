@@ -1,6 +1,6 @@
 # 365center-mcp
 
-**MCP server for Microsoft 365 / SharePoint — 35 tools for full read/write access**
+**MCP server for Microsoft 365 / SharePoint — 36 tools for full read/write access**
 
 Available on [GitHub](https://github.com/Crscristi28/365center-mcp) · [npm](https://www.npmjs.com/package/365center-mcp) · [Docker Hub](https://hub.docker.com/r/crscristi28/365center-mcp) · [cristianb.cz](https://cristianb.cz)
 
@@ -42,7 +42,7 @@ Full visual walkthrough: **[Setup Guide PDF](https://github.com/Crscristi28/365c
 
 `365center-mcp` is a Model Context Protocol (MCP) server that gives Claude — and any other MCP-compatible AI client — full read/write access to Microsoft 365 SharePoint sites.
 
-It exposes **35 tools** covering SharePoint sites, document libraries, documents, pages, metadata columns, navigation, and permissions. Claude can list sites, upload and download files, tag documents, create and publish pages, build navigation menus, manage permissions, and more — all through a single MCP connection.
+It exposes **36 tools** covering SharePoint sites, document libraries, documents, pages, metadata columns, navigation, and permissions. Claude can list sites, upload and download files, tag documents, create and publish pages, build navigation menus, manage permissions, and more — all through a single MCP connection.
 
 Built for manufacturing companies managing factory documentation in SharePoint, but works with any Microsoft 365 tenant.
 
@@ -56,7 +56,7 @@ Built for manufacturing companies managing factory documentation in SharePoint, 
 
 ## Features
 
-**35 tools** across 7 categories. All tools use Microsoft Graph API or SharePoint REST API — no middlemen.
+**36 tools** across 7 categories. All tools use Microsoft Graph API or SharePoint REST API — no middlemen.
 
 ### Sites (4 tools)
 - `list_sites` — List all SharePoint sites in the tenant
@@ -66,7 +66,7 @@ Built for manufacturing companies managing factory documentation in SharePoint, 
 
 ### Documents (9 tools)
 - `list_document_libraries` — List document libraries (drives)
-- `list_documents` — List documents with both driveItemId and listItemId
+- `list_documents` — List documents with both driveItemId and listItemId. Optional `fields: "minimal"` returns only id/name/isFolder/size (~74% token savings for exploration).
 - `upload_document` — Upload a file to SharePoint (auto session upload for files over 4 MB)
 - `upload_documents` — Upload multiple files with optional metadata in one call (max 30 per call)
 - `download_document` — Download files from SharePoint to a local path
@@ -83,17 +83,18 @@ Built for manufacturing companies managing factory documentation in SharePoint, 
 - `set_document_metadata` — Set metadata on documents
 
 ### Pages — Graph API (6 tools)
-- `list_pages` — List all pages
+- `list_pages` — List all pages. Optional `includeItemId: true` also returns numeric item IDs needed by canvas tools (requires delegated auth and siteUrl).
 - `create_page` — Create empty page
 - `create_page_with_content` — Create page with sections and HTML content
 - `add_quick_links` — Add Quick Links web part
 - `publish_page` — Publish a draft page
 - `delete_page` — Delete a page
 
-### Pages — SharePoint REST API (4 tools)
-- `list_site_pages` — List pages with numeric IDs
-- `get_page_canvas_content` — Read raw page content (CanvasContent1)
-- `set_page_canvas_content` — Write raw page content (supports Highlighted Content and any web part)
+### Pages — SharePoint REST API (5 tools)
+- `get_page_canvas_summary` — Returns structured page overview (web part types, titles, filters, layout). ~400 B JSON vs ~15 KB raw HTML. Default tool for read-only canvas analysis.
+- `get_page_canvas_content` — Read raw CanvasContent1 HTML. Use only when you need full HTML for structural edits via set_page_canvas_content.
+- `set_page_canvas_content` — Write raw page content (structural edits: adding or removing web parts).
+- `patch_page_canvas_webpart` — Surgically update web part properties (title, filter, layout, maxItems) without Claude handling the full canvas. Saves ~6 000 tokens per update vs get/set canvas pattern.
 - `copy_page` — Copy a page as template
 
 ### Navigation (3 tools)
@@ -229,7 +230,7 @@ Replace the four `your-*` values with what you collected in Step 8 of the Azure 
 
 On Windows, use `C:\\Users\\YOUR_USERNAME\\.365center-mcp:/home/mcp/.365center-mcp` as the volume mount.
 
-**4. Open Claude Desktop.** The server will appear in the MCP menu with all 35 tools loaded.
+**4. Open Claude Desktop.** The server will appear in the MCP menu with all 36 tools loaded.
 
 > **Why the volume mount?** The server caches delegated auth tokens in `~/.365center-mcp/token-cache.json`. Without the volume, you would need to re-authenticate every time Docker restarts.
 
@@ -474,7 +475,7 @@ The Graph API `create_page_with_content` tool supports these standard web parts:
 | Title Area | `cbe7b0a9-3504-44dd-a3a3-0e5cacd07788` |
 | YouTube Embed | `544dd15b-cf3c-441b-96da-004d5a8cea1d` |
 
-For **Highlighted Content** and any other web part not in this list, use the REST API tools (`get_page_canvas_content` and `set_page_canvas_content`) — they can read and write any web part including Highlighted Content.
+For **Highlighted Content** and any other web part not in this list, use `get_page_canvas_summary` to inspect, `patch_page_canvas_webpart` to update properties, and `get/set_page_canvas_content` for structural edits.
 
 ---
 

@@ -17,10 +17,24 @@ export async function listDocumentLibraries(siteId: string) {
   }));
 }
 
-export async function listDocuments(siteId: string, driveId: string, folderId: string = "root") {
+export async function listDocuments(
+  siteId: string,
+  driveId: string,
+  folderId: string = "root",
+  fields: "all" | "minimal" = "all"
+) {
   const result = await graphClient
     .api(`/sites/${siteId}/drives/${driveId}/items/${folderId}/children?$expand=listItem`)
     .get();
+
+  if (fields === "minimal") {
+    return result.value.map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      isFolder: !!item.folder,
+      size: item.size,
+    }));
+  }
 
   return result.value.map((item: any) => ({
     id: item.id,
