@@ -1,16 +1,32 @@
 import { callSharePointRest } from "../auth.js";
 
-export async function getSitePermissions(siteUrl: string) {
-  // Get all SharePoint groups for this site
-  const result = await callSharePointRest(siteUrl, "/_api/web/sitegroups", "GET") as any;
+export async function getSitePermissions(siteUrl: string, includeMembers: boolean = false) {
+  // Default: groups only. With includeMembers: expand Users and select minimal fields
+  // to avoid the N+1 pattern (get_permissions + N × get_group_members).
+  const apiPath = includeMembers
+    ? "/_api/web/sitegroups?$expand=Users&$select=Id,Title,Description,OwnerTitle,Users/Id,Users/Title,Users/Email,Users/LoginName"
+    : "/_api/web/sitegroups";
 
-  return result.d.results.map((group: any) => ({
-    id: group.Id,
-    title: group.Title,
-    description: group.Description,
-    ownerTitle: group.OwnerTitle,
-    userCount: group.Users ? group.Users.results?.length : undefined,
-  }));
+  const result = await callSharePointRest(siteUrl, apiPath, "GET") as any;
+
+  return result.d.results.map((group: any) => {
+    const base = {
+      id: group.Id,
+      title: group.Title,
+      description: group.Description,
+      ownerTitle: group.OwnerTitle,
+    };
+    if (!includeMembers) return base;
+    return {
+      ...base,
+      members: (group.Users?.results || []).map((u: any) => ({
+        id: u.Id,
+        title: u.Title,
+        email: u.Email,
+        loginName: u.LoginName,
+      })),
+    };
+  });
 }
 
 export async function getGroupMembers(siteUrl: string, groupId: number) {

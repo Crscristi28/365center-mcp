@@ -79,9 +79,13 @@ export async function createChoiceColumn(
   const site = await graphClient.api(`/sites/${siteId}`).select("webUrl").get();
   const siteUrl = site.webUrl;
 
+  const listIdentifier = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(listId)
+    ? `lists(guid'${listId}')`
+    : `lists/getByTitle('${listId}')`;
+
   const result = await callSharePointRest(
     siteUrl,
-    `/_api/web/lists/getByTitle('${listId}')/fields`,
+    `/_api/web/${listIdentifier}/fields`,
     "POST",
     {
       __metadata: { type: "SP.FieldMultiChoice" },
@@ -99,6 +103,13 @@ export async function createChoiceColumn(
     displayName: displayName,
     allowMultiple: true,
   };
+}
+
+export async function deleteColumn(siteId: string, listId: string, columnId: string) {
+  await graphClient
+    .api(`/sites/${siteId}/lists/${listId}/columns/${columnId}`)
+    .delete();
+  return { success: true, columnId };
 }
 
 export async function createTextColumn(

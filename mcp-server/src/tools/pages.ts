@@ -36,7 +36,7 @@ export async function createPage(
   siteId: string,
   title: string,
   name: string,
-  layoutType: string = "article"
+  pageLayout: "article" | "home" = "article"
 ) {
   const result = await graphClient
     .api(`/sites/${siteId}/pages`)
@@ -44,7 +44,7 @@ export async function createPage(
       "@odata.type": "#microsoft.graph.sitePage",
       name: name.endsWith(".aspx") ? name : `${name}.aspx`,
       title,
-      pageLayout: layoutType,
+      pageLayout,
       showComments: false,
       showRecommendedPages: false,
       titleArea: {

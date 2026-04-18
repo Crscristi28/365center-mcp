@@ -8,7 +8,7 @@ import { fileURLToPath } from "url";
 import path from "path";
 import { listSites, getSite, getSiteById } from "./tools/sites.js";
 import { listDocumentLibraries, listDocuments, uploadDocument, uploadDocuments, downloadDocument, searchDocuments, deleteDocument, createFolder, getDocumentVersions } from "./tools/documents.js";
-import { listColumns, createChoiceColumn, createTextColumn, setDocumentMetadata, getDocumentMetadata } from "./tools/metadata.js";
+import { listColumns, createChoiceColumn, createTextColumn, deleteColumn, setDocumentMetadata, getDocumentMetadata } from "./tools/metadata.js";
 import { listPages, createPage, createPageWithContent, addQuickLinksWebPart, publishPage, deletePage } from "./tools/pages.js";
 import { getNavigation, addNavigationLink, deleteNavigationLink } from "./tools/navigation.js";
 import { getPageCanvasContent, getPageCanvasSummary, setPageCanvasContent, copyPage, patchPageCanvasWebpart } from "./tools/pages-rest.js";
@@ -73,7 +73,7 @@ server.tool(
 
 server.tool(
   "list_document_libraries",
-  "List all document libraries (drives) in a SharePoint site. Returns driveId and listId for each library. Use driveId for file operations (upload, download, delete, list, versions). Use listId for metadata operations (list_columns, get/set_document_metadata, create columns). Call this first when working with documents — you need both IDs.",
+  "List all document libraries in a SharePoint site. Returns driveId, listId, name, and URL for each library. Use driveId for file operations (upload, download, delete, list, versions). Use listId for metadata operations (list_columns, get/set_document_metadata, create columns). Call this first when working with documents — you need both IDs.",
   { siteId: z.string().describe("SharePoint site ID") },
   async ({ siteId }) => {
     const libraries = await listDocumentLibraries(siteId);
@@ -254,6 +254,20 @@ server.tool(
 );
 
 server.tool(
+  "delete_column",
+  "PERMANENTLY delete a column from a SharePoint list or document library. This action is irreversible — the column definition and all associated metadata values on items are removed. Always confirm with the user before deleting. Use list_columns to find the columnId.",
+  {
+    siteId: z.string().describe("SharePoint site ID"),
+    listId: z.string().describe("List or document library list ID"),
+    columnId: z.string().describe("Column GUID (from list_columns)"),
+  },
+  async ({ siteId, listId, columnId }) => {
+    const result = await deleteColumn(siteId, listId, columnId);
+    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
   "set_document_metadata",
   "Set metadata fields on a document. 'fields' is a JSON string of key-value pairs using column internal names. Choice values must match predefined choices exactly (case-sensitive). Multi-select: use array of strings. Columns must exist first — check with list_columns. Accepts drive item ID (requires driveId) or numeric list item ID. Only change fields the user asked for — leave others untouched. TIP: Changing a Status field (e.g. to 'Pending Approval') can trigger Power Automate flows with 'When item modified' trigger — no HTTP webhooks or extra tools needed.",
   {
@@ -308,9 +322,10 @@ server.tool(
     siteId: z.string().describe("SharePoint site ID"),
     title: z.string().describe("Page title"),
     name: z.string().describe("Page file name (without .aspx)"),
+    pageLayout: z.enum(["article", "home"]).optional().describe("Page layout. 'article' (default) — standard content page with title banner (image, title, author, date) above the canvas. Use for 99% of pages. 'home' — dashboard-style layout without title banner, canvas goes full-width from the top. Use only when you explicitly want a landing-page feel. Note: 'home' does NOT set the page as the site's actual home page — that's a separate site setting."),
   },
-  async ({ siteId, title, name }) => {
-    const result = await createPage(siteId, title, name);
+  async ({ siteId, title, name, pageLayout }) => {
+    const result = await createPage(siteId, title, name, pageLayout);
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -419,10 +434,13 @@ server.tool(
 
 server.tool(
   "get_permissions",
-  "Get all SharePoint groups (Visitors, Members, Owners, custom) for a site. Returns group ID, title, and description. Use group ID with get_group_members to see who is in each group, or with add_user_to_group/remove_user_from_group to manage membership. Uses SharePoint REST API with delegated auth.",
-  { siteUrl: z.string().describe("Full SharePoint site URL (e.g. https://contoso.sharepoint.com/sites/MySite)") },
-  async ({ siteUrl }) => {
-    const result = await getSitePermissions(siteUrl);
+  "Get all SharePoint groups (Visitors, Members, Owners, custom) for a site. Returns group ID, title, description, and owner title. With includeMembers: true, also returns all users in each group in a single call (id, title, email, loginName) — avoids calling get_group_members separately for each group. Uses SharePoint REST API with delegated auth.",
+  {
+    siteUrl: z.string().describe("Full SharePoint site URL (e.g. https://contoso.sharepoint.com/sites/MySite)"),
+    includeMembers: z.boolean().optional().describe("If true, include member list (id, title, email, loginName) inside each group — single call for full permission overview. If false/omitted, returns groups only."),
+  },
+  async ({ siteUrl, includeMembers }) => {
+    const result = await getSitePermissions(siteUrl, includeMembers);
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   }
 );

@@ -5,15 +5,17 @@ import path from "path";
 import { Readable } from "stream";
 
 export async function listDocumentLibraries(siteId: string) {
+  // Single call with $expand=list($select=id) gives us both driveId (for file ops)
+  // and listId (for metadata ops) — drive.list is the associated SharePoint list.
   const result = await graphClient
-    .api(`/sites/${siteId}/drives`)
+    .api(`/sites/${siteId}/drives?$expand=list($select=id)`)
     .get();
 
   return result.value.map((drive: any) => ({
-    id: drive.id,
+    driveId: drive.id,
+    listId: drive.list?.id,
     name: drive.name,
     url: drive.webUrl,
-    itemCount: drive.quota?.used,
   }));
 }
 
@@ -238,7 +240,8 @@ export async function uploadDocuments(
     metadataError?: string;
   }> = [];
 
-  for (const file of files) {
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
     const entry: typeof results[0] = { fileName: file.fileName, status: "ok" };
 
     try {
@@ -264,7 +267,9 @@ export async function uploadDocuments(
     }
 
     results.push(entry);
-    await new Promise((r) => setTimeout(r, 500));
+    if (i < files.length - 1) {
+      await new Promise((r) => setTimeout(r, 500));
+    }
   }
 
   return results;
