@@ -55,9 +55,10 @@ function saveTokenCache(cache: TokenCache) {
 }
 
 async function refreshAccessToken(refreshToken: string): Promise<TokenCache> {
+  // Device code flow uses a public client — client_secret must NOT be sent
+  // (Microsoft returns AADSTS700025 if included).
   const body = new URLSearchParams({
     client_id: clientId,
-    client_secret: clientSecret,
     grant_type: "refresh_token",
     refresh_token: refreshToken,
     scope: SP_SCOPES,
