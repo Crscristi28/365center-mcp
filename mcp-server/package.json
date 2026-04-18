@@ -39,9 +39,10 @@
   },
   "homepage": "https://github.com/Crscristi28/365center-mcp#readme",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
     "@azure/identity": "^4.9.1",
     "@microsoft/microsoft-graph-client": "^3.0.7",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@napi-rs/keyring": "^1.2.0",
     "dotenv": "^16.5.0"
   },
   "devDependencies": {

@@ -1,6 +1,7 @@
 import { ClientSecretCredential } from "@azure/identity";
 import { Client } from "@microsoft/microsoft-graph-client";
 import { TokenCredentialAuthenticationProvider } from "@microsoft/microsoft-graph-client/authProviders/azureTokenCredentials/index.js";
+import { Entry } from "@napi-rs/keyring";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -28,33 +29,53 @@ export const graphClient = Client.initWithMiddleware({
 
 // ============ DELEGATED AUTH (SharePoint REST API) ============
 
-// Store token in user's home directory — works for Node, Docker (with volume), and plugins
+// Refresh token storage: OS keyring (macOS Keychain / Windows Credential Manager / Linux libsecret)
+// with file fallback (chmod 600) for headless / Docker / keyring-less environments.
+// Access token is kept in-memory only — never written to disk.
+const KEYRING_SERVICE = "365center-mcp";
+const KEYRING_ACCOUNT = "refresh-token";
 const TOKEN_DIR = path.join(process.env.HOME || process.env.USERPROFILE || "/tmp", ".365center-mcp");
-if (!fs.existsSync(TOKEN_DIR)) fs.mkdirSync(TOKEN_DIR, { recursive: true });
-const TOKEN_CACHE_PATH = path.join(TOKEN_DIR, "token-cache.json");
+const TOKEN_FILE = path.join(TOKEN_DIR, "refresh-token");
 const SHAREPOINT_DOMAIN = process.env.SHAREPOINT_DOMAIN || "";
 const SP_SCOPES = `offline_access https://${SHAREPOINT_DOMAIN}/AllSites.FullControl`;
 
-interface TokenCache {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number; // unix timestamp ms
-}
+let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 
-function loadTokenCache(): TokenCache | null {
+function loadRefreshToken(): string | null {
   try {
-    if (fs.existsSync(TOKEN_CACHE_PATH)) {
-      return JSON.parse(fs.readFileSync(TOKEN_CACHE_PATH, "utf-8"));
+    const v = new Entry(KEYRING_SERVICE, KEYRING_ACCOUNT).getPassword();
+    if (v) return v;
+  } catch {}
+  try {
+    if (fs.existsSync(TOKEN_FILE)) {
+      return fs.readFileSync(TOKEN_FILE, "utf-8").trim() || null;
     }
   } catch {}
   return null;
 }
 
-function saveTokenCache(cache: TokenCache) {
-  fs.writeFileSync(TOKEN_CACHE_PATH, JSON.stringify(cache, null, 2));
+function saveRefreshToken(token: string): void {
+  try {
+    new Entry(KEYRING_SERVICE, KEYRING_ACCOUNT).setPassword(token);
+    return;
+  } catch {}
+  try {
+    if (!fs.existsSync(TOKEN_DIR)) {
+      fs.mkdirSync(TOKEN_DIR, { recursive: true });
+    }
+    try { fs.chmodSync(TOKEN_DIR, 0o700); } catch {}
+    fs.writeFileSync(TOKEN_FILE, token);
+    try { fs.chmodSync(TOKEN_FILE, 0o600); } catch {}
+  } catch {}
 }
 
-async function refreshAccessToken(refreshToken: string): Promise<TokenCache> {
+function clearRefreshToken(): void {
+  try { new Entry(KEYRING_SERVICE, KEYRING_ACCOUNT).deletePassword(); } catch {}
+  try { if (fs.existsSync(TOKEN_FILE)) fs.unlinkSync(TOKEN_FILE); } catch {}
+  cachedAccessToken = null;
+}
+
+async function refreshAccessToken(refreshToken: string): Promise<string> {
   // Device code flow uses a public client — client_secret must NOT be sent
   // (Microsoft returns AADSTS700025 if included).
   const body = new URLSearchParams({
@@ -75,19 +96,22 @@ async function refreshAccessToken(refreshToken: string): Promise<TokenCache> {
   }
 
   const data = await response.json() as any;
-  const cache: TokenCache = {
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token || refreshToken,
+  const accessToken = data.access_token as string;
+  const newRefreshToken = (data.refresh_token as string) || refreshToken;
+  cachedAccessToken = {
+    token: accessToken,
     expiresAt: Date.now() + data.expires_in * 1000,
   };
-  saveTokenCache(cache);
-  return cache;
+  if (newRefreshToken !== refreshToken) {
+    saveRefreshToken(newRefreshToken);
+  }
+  return accessToken;
 }
 
 // Device code polling — runs in background after user gets instructions
-let deviceCodePollingPromise: Promise<TokenCache> | null = null;
+let deviceCodePollingPromise: Promise<string> | null = null;
 
-function pollForDeviceCodeToken(deviceCode: string, interval: number, expiresIn: number): Promise<TokenCache> {
+function pollForDeviceCodeToken(deviceCode: string, interval: number, expiresIn: number): Promise<string> {
   return new Promise(async (resolve, reject) => {
     const pollInterval = (interval || 5) * 1000;
     const deadline = Date.now() + expiresIn * 1000;
@@ -111,14 +135,15 @@ function pollForDeviceCodeToken(deviceCode: string, interval: number, expiresIn:
       const tokenData = await tokenResponse.json() as any;
 
       if (tokenData.access_token) {
-        const cache: TokenCache = {
-          accessToken: tokenData.access_token,
-          refreshToken: tokenData.refresh_token,
+        cachedAccessToken = {
+          token: tokenData.access_token,
           expiresAt: Date.now() + tokenData.expires_in * 1000,
         };
-        saveTokenCache(cache);
+        if (tokenData.refresh_token) {
+          saveRefreshToken(tokenData.refresh_token);
+        }
         deviceCodePollingPromise = null;
-        resolve(cache);
+        resolve(tokenData.access_token);
         return;
       }
 
@@ -164,7 +189,9 @@ async function startDeviceCodeFlow(): Promise<never> {
   const codeData = await codeResponse.json() as any;
   const { device_code, user_code, verification_uri, expires_in, interval, message } = codeData;
 
-  // Start polling in background
+  // Start polling in background. Clear any stale refresh token so a stuck/invalid
+  // one from a previous run doesn't race the device code flow.
+  clearRefreshToken();
   deviceCodePollingPromise = pollForDeviceCodeToken(device_code, interval, expires_in);
 
   // Throw error with login instructions — Claude sees this and tells the user
@@ -177,27 +204,27 @@ async function startDeviceCodeFlow(): Promise<never> {
 }
 
 export async function getDelegatedToken(): Promise<string> {
-  // 1. Check cache
-  const cache = loadTokenCache();
-  if (cache) {
-    if (cache.expiresAt > Date.now() + 300000) {
-      return cache.accessToken;
-    }
+  // 1. In-memory access token still valid?
+  if (cachedAccessToken && cachedAccessToken.expiresAt > Date.now() + 300000) {
+    return cachedAccessToken.token;
+  }
+
+  // 2. Try refresh token from keyring/file
+  const refreshToken = loadRefreshToken();
+  if (refreshToken) {
     try {
-      const refreshed = await refreshAccessToken(cache.refreshToken);
-      return refreshed.accessToken;
+      return await refreshAccessToken(refreshToken);
     } catch {
-      // Refresh failed — need new login
+      // Refresh failed (expired/revoked) — fall through to device code flow
     }
   }
 
-  // 2. If polling is already running, wait for it
+  // 3. If polling is already running, wait for it
   if (deviceCodePollingPromise) {
-    const result = await deviceCodePollingPromise;
-    return result.accessToken;
+    return await deviceCodePollingPromise;
   }
 
-  // 3. No cache, no polling — start device code flow (throws with instructions)
+  // 4. No cache, no polling — start device code flow (throws with instructions)
   await startDeviceCodeFlow();
   throw new Error("unreachable"); // startDeviceCodeFlow always throws
 }
