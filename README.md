@@ -1,6 +1,6 @@
 # 365center-mcp
 
-**MCP server for Microsoft 365 / SharePoint — 36 tools for full read/write access**
+**MCP server for Microsoft 365 / SharePoint — 30+ tools for full read/write access**
 
 Available on [GitHub](https://github.com/Crscristi28/365center-mcp) · [npm](https://www.npmjs.com/package/365center-mcp) · [Docker Hub](https://hub.docker.com/r/crscristi28/365center-mcp) · [cristianb.cz](https://cristianb.cz)
 
@@ -56,7 +56,7 @@ Built for manufacturing companies managing factory documentation in SharePoint, 
 
 ## Features
 
-**36 tools** across 7 categories. All tools use Microsoft Graph API or SharePoint REST API — no middlemen.
+**30+ tools** across 7 categories. All tools use Microsoft Graph API or SharePoint REST API — no middlemen.
 
 ### Sites (4 tools)
 - `list_sites` — List all SharePoint sites in the tenant
@@ -65,7 +65,7 @@ Built for manufacturing companies managing factory documentation in SharePoint, 
 - `create_site` — Create a new Communication or Team site
 
 ### Documents (9 tools)
-- `list_document_libraries` — List document libraries (drives)
+- `list_document_libraries` — List document libraries. Returns `driveId` (for file operations) and `listId` (for metadata operations) — call this first when working with documents.
 - `list_documents` — List documents with both driveItemId and listItemId. Optional `fields: "minimal"` returns only id/name/isFolder/size (~74% token savings for exploration).
 - `upload_document` — Upload a file to SharePoint (auto session upload for files over 4 MB)
 - `upload_documents` — Upload multiple files with optional metadata in one call (max 30 per call)
@@ -75,10 +75,11 @@ Built for manufacturing companies managing factory documentation in SharePoint, 
 - `create_folder` — Create folders
 - `get_document_versions` — Version history (audit trail)
 
-### Metadata (5 tools)
+### Metadata (6 tools)
 - `list_columns` — List custom metadata columns
 - `create_choice_column` — Create choice/dropdown columns (single or multi-select)
 - `create_text_column` — Create text columns
+- `delete_column` — Permanently delete a column from a list or document library (irreversible)
 - `get_document_metadata` — Read document metadata
 - `set_document_metadata` — Set metadata on documents
 
@@ -103,7 +104,7 @@ Built for manufacturing companies managing factory documentation in SharePoint, 
 - `delete_navigation_link` — Remove link from navigation
 
 ### Permissions (4 tools)
-- `get_permissions` — List SharePoint groups (Visitors, Members, Owners)
+- `get_permissions` — List SharePoint groups (Visitors, Members, Owners). Optional `includeMembers: true` returns members inside each group in a single call.
 - `get_group_members` — List members of a group
 - `add_user_to_group` — Add user to a group
 - `remove_user_from_group` — Remove user from a group

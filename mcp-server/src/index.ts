@@ -213,7 +213,7 @@ server.tool(
   "List custom metadata columns in a SharePoint list/library. listId can be display name (e.g. 'Documents') or GUID. Returns internal name, display name, type, and choices. Call this before set_document_metadata — internal column names (used in API) often differ from display names (shown in UI). Using wrong name fails silently.",
   {
     siteId: z.string().describe("SharePoint site ID"),
-    listId: z.string().describe("List or document library list ID"),
+    listId: z.string().describe("List ID (GUID) or display name (e.g. 'Documents')"),
   },
   async ({ siteId, listId }) => {
     const columns = await listColumns(siteId, listId);
@@ -226,7 +226,7 @@ server.tool(
   "Create a choice/dropdown metadata column in a SharePoint list or document library. Use allowMultiple:true for multi-select checkboxes (e.g. document belongs to multiple areas). Column 'name' is the internal API name (no spaces/special chars), 'displayName' is what users see in SharePoint UI. The column must be created BEFORE setting metadata values on documents.",
   {
     siteId: z.string().describe("SharePoint site ID"),
-    listId: z.string().describe("List or document library list ID"),
+    listId: z.string().describe("List ID (GUID) or display name (e.g. 'Documents')"),
     name: z.string().describe("Internal column name"),
     displayName: z.string().describe("Display name shown in UI"),
     choices: z.array(z.string()).describe("List of choices"),
@@ -243,7 +243,7 @@ server.tool(
   "Create a single-line text metadata column in a SharePoint list or document library. Column 'name' is the internal API name (no spaces/special chars), 'displayName' is what users see in SharePoint UI. The column must be created BEFORE setting metadata values on documents.",
   {
     siteId: z.string().describe("SharePoint site ID"),
-    listId: z.string().describe("List or document library list ID"),
+    listId: z.string().describe("List ID (GUID) or display name (e.g. 'Documents')"),
     name: z.string().describe("Internal column name"),
     displayName: z.string().describe("Display name shown in UI"),
   },
@@ -258,7 +258,7 @@ server.tool(
   "PERMANENTLY delete a column from a SharePoint list or document library. This action is irreversible — the column definition and all associated metadata values on items are removed. Always confirm with the user before deleting. Use list_columns to find the columnId.",
   {
     siteId: z.string().describe("SharePoint site ID"),
-    listId: z.string().describe("List or document library list ID"),
+    listId: z.string().describe("List ID (GUID) or display name (e.g. 'Documents')"),
     columnId: z.string().describe("Column GUID (from list_columns)"),
   },
   async ({ siteId, listId, columnId }) => {
@@ -272,7 +272,7 @@ server.tool(
   "Set metadata fields on a document. 'fields' is a JSON string of key-value pairs using column internal names. Choice values must match predefined choices exactly (case-sensitive). Multi-select: use array of strings. Columns must exist first — check with list_columns. Accepts drive item ID (requires driveId) or numeric list item ID. Only change fields the user asked for — leave others untouched. TIP: Changing a Status field (e.g. to 'Pending Approval') can trigger Power Automate flows with 'When item modified' trigger — no HTTP webhooks or extra tools needed.",
   {
     siteId: z.string().describe("SharePoint site ID"),
-    listId: z.string().describe("List or document library list ID"),
+    listId: z.string().describe("List ID (GUID) or display name (e.g. 'Documents')"),
     itemId: z.string().describe("Document ID — either numeric list item ID or drive item ID"),
     fields: z.string().describe("JSON string of key-value pairs, e.g. {\"Oblast\":\"Linka 1\",\"Status\":\"Platný\"}"),
     driveId: z.string().optional().describe("Drive ID — required when itemId is a drive item ID (non-numeric)"),
@@ -289,7 +289,7 @@ server.tool(
   "Get all metadata fields of a document including custom columns. Accepts both drive item ID and numeric list item ID — if using drive item ID, provide driveId. Returns all field values including system fields and custom metadata.",
   {
     siteId: z.string().describe("SharePoint site ID"),
-    listId: z.string().describe("List or document library list ID"),
+    listId: z.string().describe("List ID (GUID) or display name (e.g. 'Documents')"),
     itemId: z.string().describe("Document ID — either numeric list item ID or drive item ID"),
     driveId: z.string().optional().describe("Drive ID — required when itemId is a drive item ID (non-numeric)"),
   },
